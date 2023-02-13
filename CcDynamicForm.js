@@ -12,9 +12,12 @@ function toIsoDateString(d) {
 }
 
 class CcDynamicForm extends HTMLElement {
-  constructor() {
+  constructor(formtype, api) {
     super();
     
+    this.formtype = formtype;
+    this.api = api;
+
     this.mandatorystring = "";
     this.nonmandatorystring = " *";
     this.saving = false;
@@ -27,42 +30,14 @@ class CcDynamicForm extends HTMLElement {
 
     this.invalidfields = []
   }
+
+  load(objectid) {
+    this.loadObjectId = objectid;
+  }
   
   connectedCallback () {
-    setTimeout(() => {
-      this.connectedCallbackStep2();
-    }, 0);
-  }
-  
-  connectedCallbackStep2 () {
-    var src = this.getAttribute("src");
-    if (src) {
-      var linkElem = document.createElement('style');
-      linkElem.textContent = `
-  @font-face {
-    font-family: 'Material Icons';
-    font-style: normal;
-    font-weight: 400;
-    src: url(cc-material-helpers/materialicons20230105-fill.woff2) format('woff2');
-  }
-  `;
-      document.head.appendChild(linkElem);
-
-      var script = document.createElement("script");
-      script.src = "cc-material-helpers/material-components-web.min.js";
-      document.head.appendChild(script);
-
-      var linkElem = document.createElement('link');
-      linkElem.setAttribute('rel', 'stylesheet');
-      linkElem.setAttribute('href', 'cc-material-helpers/material-components-web.min.css');
-      this.appendChild(linkElem);
-
-      var linkElem = document.createElement('style');
-      linkElem.textContent = `
-  .mdc-select--outlined {
-    height:50px;
-  }
-  
+    var linkElem = document.createElement('style');
+    linkElem.textContent = `
   @media print
   {    
       .print8pt {
@@ -104,82 +79,29 @@ class CcDynamicForm extends HTMLElement {
       }
   }
 
-  dynamic-form {
-    box-sizing: content-box;
-  }
-
-  span {
-    box-sizing: border-box;
-  }
-
-  .formLabel {
-    display:inline-block;
-    padding-left:4px;
-    padding-right:4px;
-    overflow:hidden;
-    text-overflow:ellipsis;
-    vertical-align:top;
-    margin-top:10px;
-    max-width:90vw;
-    white-space:break-spaces;
-  }
-
-  td {
-    vertical-align:top;
-  }
-
-  .material-icons {
-    font-family: 'Material Icons';
-    font-weight: normal;
-    font-style: normal;
-    font-size: 24px;
-    line-height: 1;
-    letter-spacing: normal;
-    text-transform: none;
-    display: inline-block;
-    white-space: nowrap;
-    word-wrap: normal;
-    direction: ltr;
-    -webkit-font-feature-settings: 'liga';
-    -webkit-font-smoothing: antialiased;
-  }
   `;
-      this.appendChild(linkElem);
-      
-      var script = document.createElement("script");
-      script.src = "cc-material-helpers/material-components-web.min.js";
-      script.addEventListener("load", () => {
+    this.appendChild(linkElem);
 
-        fetch(src, { 
-          method: "GET",
-          cache: "no-cache",
-        })
-        .then(response => { return response.text(); })
-        .then(json => {
-          try {
-            json = JSON.parse(json);
-            this.formsource = json;
-            
-            this.mandatorystring = typeof this.formsource.mandatory == "string" ? this.formsource.mandatory : "";
-            this.nonmandatorystring = typeof this.formsource.nonmandatory == "string" ? this.formsource.nonmandatory : " *";
-
-            if (g_urlParams.get('edit')) {
-              var objectid = g_urlParams.get('edit');
-              this.loadContent(objectid);
-            } else {
-              this.init(this.formsource.mainForm, {});
-            }
-          } catch (e) {
-            debugger;
-          }
-        })
-        .catch(() => {
-          alert("Sorry, das Formular konnte nicht geladen werden.");
-        });
+    this.api.getDefinition(this.formtype)
+    .then(json => {
+      try {
+        this.formsource = json;
         
-      });
-      this.appendChild(script);
-    }
+        this.mandatorystring = typeof this.formsource.mandatory == "string" ? this.formsource.mandatory : "";
+        this.nonmandatorystring = typeof this.formsource.nonmandatory == "string" ? this.formsource.nonmandatory : " *";
+
+        if (this.loadObjectId) {
+          this.loadContent(this.loadObjectId);
+        } else {
+          this.init(this.formsource.mainForm, {});
+        }
+      } catch (e) {
+        debugger;
+      }
+    })
+    .catch(() => {
+      alert("Sorry, das Formular konnte nicht geladen werden.");
+    });
   }
 
   init(Form, Content) {
@@ -443,25 +365,14 @@ class CcDynamicForm extends HTMLElement {
         var td = document.createElement("td");
         td.colSpan = this.colspan;
         td.style.whiteSpace = "nowrap";
-        td.innerHTML = `
-            <span class="formLabel" style="width:` + formElement.labelwidth + `;">`+ formElement.title + `</span>` +
-          (breaklabel ? "<br>" : "") +
-            `<div style="margin-bottom:5px;" class="mdc-text-field mdc-text-field--textarea">
-              <textarea style="width:` + formElement.controlwidth + `;height:180px;white-space: break-spaces;max-width:90vw;" class="mdc-text-field__input" rows="8" cols="40"></textarea>
-              <div class="mdc-notched-outline">
-                <div class="mdc-notched-outline__leading"></div>
-                <div class="mdc-notched-outline__notch">
-                </div>
-                <div class="mdc-notched-outline__trailing"></div>
-              </div>
-            </div>
-          `;
 
-        var inputx = mdc.textField.MDCTextField.attachTo(td.querySelector("div"));
-        
-        let textarea = td.querySelector("textarea");
+        let textarea = new CcMdcTextArea();
+        textarea.style = `width:${formElement.controlwidth};height:180px;white-space: break-spaces;max-width:90vw;`;
+        td.innerHTML = `<span class="formLabel" style="width:` + formElement.labelwidth + `;">`+ formElement.title + `</span>` + (breaklabel ? "<br>" : "");
+        td.appendChild(textarea);
+
         let fEName1 = formElement.name;
-        textarea.textContent = getValueOrDefault (elementContent, "");
+        textarea.value = getValueOrDefault (elementContent, "");
         textarea.addEventListener("change", () => {
           content[fEName1] = textarea.value;
         });
@@ -469,6 +380,7 @@ class CcDynamicForm extends HTMLElement {
         break;
 
       case "plzort":
+//AAA
         var td = document.createElement("td");
         td.colSpan = this.colspan;
         td.style.whiteSpace = "nowrap";
@@ -619,27 +531,16 @@ class CcDynamicForm extends HTMLElement {
         var td = document.createElement("td");
         td.colSpan = this.colspan;
         td.style.whiteSpace = "nowrap";
-        td.innerHTML = `
-          <span class="formLabel" style="width:` + formElement.labelwidth + `;${invalidstyle}">`+ formElement.title + getMandatory(formElement.mandatory) + `</span>` +
-          (breaklabel ? "<br>" : "") +
-          `<div class="mdc-text-field text-field mdc-text-field--outlined">
-              <input style="width:` + formElement.controlwidth + `;" type="text" id="text-field-outlined" class="mdc-text-field__input" aria-describedby="text-field-outlined-helper-text">
-              <div class="mdc-notched-outline mdc-notched-outline--upgraded">
-                <div class="mdc-notched-outline__leading"></div>
-                <div class="mdc-notched-outline__notch" style=""></div>
-                <div class="mdc-notched-outline__trailing"></div>
-              </div>
-            </div>
-            
-          `;
 
-        var inputx = mdc.textField.MDCTextField.attachTo(td.querySelector("div"));
+        let stringInput = new CcMdcTextField();
+        stringInput.style = `width:${formElement.controlwidth};${invalidstyle}`
+        stringInput.label = formElement.title + getMandatory(formElement.mandatory);
+        td.appendChild(stringInput);
 
-        let input = td.querySelector("input");
         let fEName2 = formElement.name;
-        input.value = getValueOrDefault (elementContent, "");
-        input.addEventListener("change", () => {
-          content[fEName2] = input.value;
+        stringInput.value = getValueOrDefault (elementContent, "");
+        stringInput.addEventListener("change", () => {
+          content[fEName2] = stringInput.value;
         });
         this.tr.appendChild(td);
 
@@ -651,6 +552,7 @@ class CcDynamicForm extends HTMLElement {
         break;
         
       case "value":
+ //AAA
         var td = document.createElement("td");
         td.colSpan = this.colspan;
         td.style.whiteSpace = "nowrap";
@@ -673,55 +575,35 @@ class CcDynamicForm extends HTMLElement {
         }
         td.colSpan = this.colspan;
         td.style.whiteSpace = "nowrap";
-        td.innerHTML = `
-          <span class="formLabel" style="width:` + formElement.labelwidth + `;${invalidstyle}">`+ formElement.title + getMandatory(formElement.mandatory) + tooltip + `</span>` +
-          (breaklabel ? "<br>" : "") +
-          `<div class="mdc-select mdc-select--outlined">
-            <i class="mdc-select__dropdown-icon"></i>
-            <select style="width:` + formElement.controlwidth + `;max-width:90vw;" class="mdc-select__native-control"></select>
-            <div class="mdc-notched-outline">
-              <div class="mdc-notched-outline__leading"></div>
-              <div class="mdc-notched-outline__trailing"></div>
-            </div>
-          </div>`;
+        td.innerHTML = tooltip;
+
+        let selectInput = new CcMdcSelect();
+        selectInput.label = formElement.title + getMandatory(formElement.mandatory);
+        selectInput.style = `width:${formElement.controlwidth};max-width:90vw;${invalidstyle}`;
+        td.appendChild(selectInput);
+
         if (formElement.helpicon) {
           td.querySelector("cc-tooltip").innerHTML = formElement.helpicon;
         }
 
+        selectInput.value = elementContent;
+
         let selected = false;
-        let select = td.querySelector("select");
         for(var i3 = 0; i3 < formElement.options.length; i3++) {
-          var option = document.createElement("option");
           if (typeof formElement.options[i3] == "string") {
-            option.value = JSON.stringify(formElement.options[i3]);
-            if (formElement.options[i3]) {
-              option.innerText = formElement.options[i3];
-            } else {
-              option.innerHTML = "&nbsp;";
-            }
-            option.selected = (formElement.options[i3] == elementContent);
-            selected |= option.selected;
+            selectInput.addItem( formElement.options[i3] ? formElement.options[i3] : "&nbsp;", formElement.options[i3]);
+            selected |= (formElement.options[i3] == elementContent);
           } else if (typeof formElement.options[i3] == "object") {
-            option.value = JSON.stringify(formElement.options[i3].value);
-            if (formElement.options[i3].name) {
-              option.innerText = formElement.options[i3].name;
-            } else {
-              option.innerHTML = "&nbsp;";
-            }
-            option.selected = (formElement.options[i3].value === elementContent);
-            selected |= option.selected;
+            selectInput.addItem( formElement.options[i3].name ? formElement.options[i3].name : "&nbsp;", formElement.options[i3].value);
+            selected |= (formElement.options[i3] == elementContent);
           }
-          select.appendChild(option);
         }
         if (!selected && formElement.addMissing && elementContent) {
-          option.value = JSON.stringify(elementContent);
-          option.innerText = elementContent;
-          option.selected = true;
-          select.appendChild(option);
+          selectInput.addItem( elementContent ? elementContent : "&nbsp;", elementContent);
         }
         let fEName4 = formElement.name;
-        select.addEventListener("change", () => {
-          content[fEName4] = JSON.parse(select.options[select.selectedIndex].value);
+        selectInput.addEventListener("change", () => {
+          content[fEName4] = selectInput.value;
           this.checkRedraw (fEName4)
         });
         this.tr.appendChild(td);
@@ -734,6 +616,7 @@ class CcDynamicForm extends HTMLElement {
         break;
 
       case "multiselect":
+//AAA
         var td = document.createElement("td");
         td.colSpan = this.colspan;
         td.style.whiteSpace = "nowrap";
@@ -885,6 +768,7 @@ class CcDynamicForm extends HTMLElement {
         break;
         
       case "date":
+//AAA
         var td = document.createElement("td");
         td.colSpan = this.colspan;
         td.style.whiteSpace = "nowrap";
@@ -929,7 +813,7 @@ class CcDynamicForm extends HTMLElement {
         break;
 
       case "date3":
-        var td = document.createElement("td");
+//AAA        var td = document.createElement("td");
         td.colSpan = this.colspan;
         td.style.whiteSpace = "nowrap";
         td.innerHTML = `
@@ -1022,6 +906,7 @@ class CcDynamicForm extends HTMLElement {
         break;
 
       case "date-initonly":
+//AAA
         if (!content[formElement.name]) {
           var offsetvalue = formElement.nowoffset;
           switch (("" + formElement.nowoffset).substring(0, 1)) {
@@ -1051,6 +936,7 @@ class CcDynamicForm extends HTMLElement {
         break;
 
       case "number":
+//AAA
         var tooltip = "";
         if (formElement.helpicon) {
           tooltip = `&nbsp;<cc-tooltip style="height:16px;width:16px;" icon="info"></cc-tooltip>`;
@@ -1100,6 +986,7 @@ class CcDynamicForm extends HTMLElement {
         break;
         
       case "drawing":
+//AAA
         let params = {content, element:formElement, form:formelements, precalc: false, index: this.subFormIndizes[depth], }
         var td = document.createElement("td");
         td.colSpan = this.colspan;
@@ -1132,6 +1019,7 @@ class CcDynamicForm extends HTMLElement {
         break;
 
       case "save":
+//AAA
         var td = document.createElement("td");
         td.colSpan = this.colspan;
         td.style.whiteSpace = "nowrap";
@@ -1170,6 +1058,7 @@ class CcDynamicForm extends HTMLElement {
         break;
 
       case "div":
+//AAA
         var td = document.createElement("td");
         td.colSpan = this.colspan;
         td.style.whiteSpace = "nowrap";
@@ -1185,6 +1074,7 @@ class CcDynamicForm extends HTMLElement {
         break;
         
       case "d3-spider":
+//AAA
         var td = document.createElement("td");
         td.colSpan = this.colspan;
         td.style.whiteSpace = "nowrap";
@@ -1324,6 +1214,7 @@ class CcDynamicForm extends HTMLElement {
       case "date-initonly":
       case "nextline":
       case "save":
+      case "value":
         break;
 
       default:
@@ -1338,12 +1229,7 @@ class CcDynamicForm extends HTMLElement {
       return;
     }
     this.saving = true;
-    fetch("/dynform/save", { 
-      method: "POST", cache: "no-cache", headers: { 
-          "Content-Type": "application/json; charset=utf-8", 
-      },body: JSON.stringify({ cmd : "save", formtype: this.getAttribute("src"), type : this.formsource.type, obj : this.content }) 
-    })
-    .then(response => response.json() )
+    this.api.save(this.formsource.type, this.formtype, this.content)
     .then((oJson) => {
       this.content = oJson;
       
@@ -1369,12 +1255,7 @@ class CcDynamicForm extends HTMLElement {
   }
   
   loadContent(objectid) {
-    fetch("/dynform/load", { 
-      method: "POST", cache: "no-cache", headers: { 
-          "Content-Type": "application/json; charset=utf-8",
-      },body: JSON.stringify({ cmd : "load", type : this.formsource.type, formtype: this.getAttribute("src"), objectid : objectid })
-    })
-    .then(response => response.json() )
+    this.api.load(this.formsource.type, this.formtype, objectid)
     .then((oJson) => {
       if (!oJson.objectid) {
         oJson.objectid = objectid;
