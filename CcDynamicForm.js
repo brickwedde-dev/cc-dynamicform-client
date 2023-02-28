@@ -108,6 +108,7 @@ class CcDynamicForm extends HTMLElement {
     var oldtable = this.table;
 
     this.table = document.createElement("table");
+    this.table.style.margin = "10px";
     this.appendChild(this.table);
 
     this.loadForm(Form, Content);
@@ -365,10 +366,12 @@ class CcDynamicForm extends HTMLElement {
         var td = document.createElement("td");
         td.colSpan = this.colspan;
         td.style.whiteSpace = "nowrap";
+        td.innerHTML = `
+            <span class="formLabel" style="display:inline-block;width:` + formElement.labelwidth + `;">`+ formElement.title + `</span>` +
+          (breaklabel ? "<br>" : "");
 
         let textarea = new CcMdcTextArea();
-        textarea.style = `width:${formElement.controlwidth};height:180px;white-space: break-spaces;max-width:90vw;`;
-        td.innerHTML = `<span class="formLabel" style="width:` + formElement.labelwidth + `;">`+ formElement.title + `</span>` + (breaklabel ? "<br>" : "");
+        textarea.style = `display:inline-block;width:${formElement.controlwidth};height:180px;white-space: break-spaces;`;
         td.appendChild(textarea);
 
         let fEName1 = formElement.name;
@@ -531,9 +534,12 @@ class CcDynamicForm extends HTMLElement {
         var td = document.createElement("td");
         td.colSpan = this.colspan;
         td.style.whiteSpace = "nowrap";
+        td.innerHTML = `
+          <span class="formLabel" style="display:inline-block;width:` + formElement.labelwidth + `;${invalidstyle}">`+ formElement.title + getMandatory(formElement.mandatory) + `</span>` +
+          (breaklabel ? "<br>" : "");
 
         let stringInput = new CcMdcTextField();
-        stringInput.style = `width:${formElement.controlwidth};${invalidstyle}`
+        stringInput.style = `width:${formElement.controlwidth};display:inline-block;`
         stringInput.label = formElement.title + getMandatory(formElement.mandatory);
         td.appendChild(stringInput);
 
@@ -575,11 +581,13 @@ class CcDynamicForm extends HTMLElement {
         }
         td.colSpan = this.colspan;
         td.style.whiteSpace = "nowrap";
-        td.innerHTML = tooltip;
+        td.innerHTML = `
+          <span class="formLabel" style="display:inline-block;width:` + formElement.labelwidth + `;${invalidstyle}">`+ formElement.title + getMandatory(formElement.mandatory) + tooltip + `</span>` +
+          (breaklabel ? "<br>" : "");
 
         let selectInput = new CcMdcSelect();
-        selectInput.label = formElement.title + getMandatory(formElement.mandatory);
-        selectInput.style = `width:${formElement.controlwidth};max-width:90vw;${invalidstyle}`;
+//        selectInput.label = formElement.title + getMandatory(formElement.mandatory);
+        selectInput.style = `display:inline-block;width:${formElement.controlwidth};max-width:90vw;${invalidstyle}`;
         td.appendChild(selectInput);
 
         if (formElement.helpicon) {
@@ -1023,13 +1031,22 @@ class CcDynamicForm extends HTMLElement {
         var td = document.createElement("td");
         td.colSpan = this.colspan;
         td.style.whiteSpace = "nowrap";
-        td.innerHTML = `<button style="margin-right:10px;" class="mdc-fab mdc-fab--extended no-print">
-                    <span class="mdc-fab__icon material-icons">save_alt</span>
-                    <span class="mdc-fab__label">${formElement.title}</span>
-                  </button><input style="display:none;" type="text" class="no-print" name="objectid" disabled>`;
+
+        let saveBtn = new CcMdcButton();
+        saveBtn.label = formElement.title;
+        saveBtn.icon = "save_alt";
+        saveBtn.className += " no-print";
+        td.appendChild(saveBtn);
+
+        let objectidInput = new CcMdcTextField();
+        objectidInput.title = "Objekt ID";
+        objectidInput.className += " no-print";
+        objectidInput.style.display = "none";
+        objectidInput.type = "text";
+        objectidInput.disabled = true;
+        td.appendChild(objectidInput);
         
-        let savebutton = td.querySelector("button");
-        savebutton.addEventListener("click", () => {
+        saveBtn.addEventListener("click", () => {
           this.invalidfields = [];
           var o = this.checkform (this.form, this.content, this.invalidfields, "root", 1);
           if (this.invalidfields.length == 1) {
@@ -1051,8 +1068,7 @@ class CcDynamicForm extends HTMLElement {
           }
         });
         
-        let objectid = td.querySelector("input");
-        objectid.value = getValueOrDefault (elementContent, "");
+        objectidInput.value = getValueOrDefault (elementContent, "");
 
         this.tr.appendChild(td);
         break;
@@ -1253,7 +1269,7 @@ class CcDynamicForm extends HTMLElement {
       window.alert("Save failed", "Saving form failed.");
     });
   }
-  
+
   loadContent(objectid) {
     this.api.load(this.formsource.type, this.formtype, objectid)
     .then((oJson) => {
